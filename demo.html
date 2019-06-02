@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <script src="https://unpkg.com/react@16/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@16/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6.15.0/babel.min.js"></script>
+
+    <script src="https://unpkg.com/react-router-dom@5.0.0/umd/react-router-dom.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/redux/4.0.1/redux.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/EventEmitter/5.2.5/EventEmitter.js"></script>
+
+    <script type="text/babel" src="/yesnotemplate.js"></script>
+    <script type="text/babel" src="/textfield.js"></script>
+
+</head>
+<body>
+    <div id="main"></div>
+    <script type="text/babel">
+    let quiz = {
+            id:1, 
+            total:6,
+            containers:[
+                { container: [
+                    { 
+                        id:999,
+                        question:"Start",
+                        type:"yesno"
+                    },
+                    { 
+                        id:0,
+                        question:"What is your name?",
+                        type:"textfield",
+                        canpersist:true,
+                        template:"textfield"
+                    },
+                    { 
+                        id:1,
+                        question:"Are you man or woman?",
+                        type:"yesno"
+                    },
+                    { 
+                        id:2,
+                        question:"How old are you?",
+                        type:"number",
+                        template:"yesno"
+                    },
+                    { 
+                        id:3,
+                        question:"How old is he?",
+                        type:"number"
+                    },
+                    { 
+                        id:4,
+                        question:"How old is she?",
+                        type:"number"
+                    }
+                ]}
+            ]
+        };
+
+            
+        const AppConstants = { ANSWER:'Answer'};
+
+        let AppActions = {
+            answerQuestion(question, result, index) { 
+                AppStore.dispatch({ type: AppConstants.ANSWER,  index:index, question: question, result:result  }); 
+            },
+        }
+
+        let currentindex = 0;
+        let appData = function(state = {quiz:quiz, index:currentindex, question:quiz.containers[0].container[0]}, action){
+            switch(action.type){
+            case AppConstants.ANSWER: 
+                let questions = [];
+                for(let c of state.quiz.containers) {
+                    for (let q of c.container) {
+                        questions.push(q);
+                    }
+                }
+                questions[currentindex].result = action.result;
+                let question = questions[++currentindex];
+                if (question) {
+                    let previousresponse = getPreviousResponse(question);
+                    while (previousresponse != undefined) {
+                        question.result = previousresponse;
+                        question = questions[++currentindex];
+                        previousresponse = getPreviousResponse(question);
+                    }
+                }
+                let newstate = { quiz:quiz, question:question, index:currentindex};
+                if (action.question.canpersist){
+                    let persistedquestions = JSON.parse(localStorage["pq"] || "[]");
+                    if (!persistedquestions) persistedquestions = [];
+                    if (!persistedquestions.find(p => p.id == action.question.id)) {
+                        persistedquestions.push(questions[questions.indexOf(action.question)]);
+                    }
+                    localStorage["pq"] = JSON.stringify(persistedquestions);
+                }
+                return newstate;
+            }    
+            return state;    
+        }
+
+        function getPreviousResponse(question){
+            let persistedquestions = JSON.parse(localStorage["pq"] || "[]");
+            for (var q of persistedquestions){
+                if (q.id == question.id) return q.result;
+            }
+            return undefined;
+        }
+
+        let AppStore = Redux.createStore(appData);
+        
+        let componentsmap = {
+            "yesno" : YesNo,
+            "textfield" : TextField
+        };
+
+    </script>
+    <script type="text/babel">
+        class Main extends React.Component {
+            componentDidMount(){
+                AppStore.subscribe(() => { this.setState({index:AppStore.getState().index}); });
+            }
+            render(){
+                
+                ("Rerender");
+                let {question, index, quiz} = AppStore.getState();
+
+                if (quiz.total == index) return <div>Complete! {JSON.stringify(quiz)}</div>
+                if (question.template) {
+                    var ComponentInstance = componentsmap[question.template];
+                    return <ComponentInstance question={question.question} setResult={(value) => { AppActions.answerQuestion(question, value, question.canpersist);}} />
+                }
+                return <div>
+                    <div>{question.question}</div>
+                    <button onClick={() => { AppActions.answerQuestion(question, 1, question.canpersist);}}>Yes</button>
+                    <button onClick={() => { AppActions.answerQuestion(question, 0, question.canpersist);}}>No</button>
+                </div>
+            }
+        }
+
+
+    ReactDOM.render(<Main/>, document.querySelector("#main"))
+    </script>
+</body>
+</html>
